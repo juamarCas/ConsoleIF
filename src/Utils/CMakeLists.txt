@@ -1,0 +1,1 @@
+add_library(${UTILS_LIB_NAME} STATIC "Utils.cpp")
