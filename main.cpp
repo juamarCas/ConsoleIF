@@ -2,23 +2,25 @@
 
 #include "spdlog/spdlog.h"
 #include "Utils.h"
+
 #ifndef DEBUG
 #define DEBUG 1
 #endif
 
-typedef struct command_node {
-    std::string node_name;
-    std::string node_parameters_structure;
-    std::string node_description;
-    std::map<std::string, struct command_node> next_node {};
-    std::function<void(const std::vector<std::any>&)> node_action = nullptr;
-} Command_node;
-
-typedef struct command {
+typedef struct Command {
     std::string command     = "";
     std::string description = "";
-    std::string parameters  = ""; 
-} Command;
+    std::vector<std::string> parameters;
+} command_t;
+
+typedef struct Command_node {
+    command_t command;
+    std::map<std::string, struct Command_node> next_node {};
+    std::function<void(const std::vector<std::any>&)> node_action = nullptr;
+
+} command_node_t;
+
+
 
 
 /**
@@ -27,10 +29,10 @@ typedef struct command {
  * @param command command to be validated
  * @return Result object Result with results information 
  */
-Result valiedate_command(const std::string& command, Command& command_out);
+Result valiedate_command(const std::string& command, command_t& command_out);
 
 
-std::map<std::string, Command_node> command_map;
+std::map<std::string, command_node_t> command_map;
 
 
 
@@ -44,7 +46,13 @@ std::map<std::string, Command_node> command_map;
  */
 
 bool create_command(const std::string& command, std::function<void(const std::vector<std::any>&)> callback);
+bool create_command(const std::string& command, std::function<void(const int&)> callback);
+bool create_command(const std::string& command, std::function<void(void)> callback);
+
 bool add_description_to_command(const std::string& description);
+
+
+result_t process_command(const std::string& cmd);
 
 
 
@@ -77,10 +85,12 @@ void begin_app(){
         std::string command;
         std::getline(std::cin, command);
         command = trim(command);
-
+        process_command(command);
         if(command == "exit"){
             spdlog::debug("Exiting app");
             exit(0);
+        }else{
+
         }
     }
 }
@@ -93,16 +103,74 @@ int main(){
     spdlog::set_level(spdlog::level::error);
     #endif 
 
-    std::string get_serial_command = "get_serial_list*get a list of every serial device available*<(int)[1-n] (string)>";
+    std::string get_serial_command = "get_serial_list*get a list of every serial device available*<int>";
+    std::string get_test = "get_test*this is a test*<int>_list<int string>";
     
     create_command("clear", [](const std::vector<std::any>& args){
         std::system("clear");
     });
 
     create_command(get_serial_command, get_serial_list);
+    create_command(get_test, [](const std::vector<std::any>& args){
+
+    });
+
+    
     begin_app();
     
     return 0;
+}
+
+result_t process_command(const std::string& cmd){
+    result_t res = {true, "", ""};
+    std::vector<std::string> commands = split_string(cmd, ' ');
+    std::vector<std::any> args; 
+    std::uint8_t command_index = 0;
+
+    auto command_it = commands.begin();
+    while(command_it != commands.end()){
+        spdlog::debug(*command_it);
+        
+        if(command_map.find(*command_it) == command_map.end()){
+            spdlog::error("Not command found for {}", *command_it);
+            res.is_ok = false;
+            res.error_message = fmt::format("Not command found for {}", *command_it);
+            return res;
+        }
+        
+        command_node_t cmd_node = command_map[*command_it];
+        spdlog::debug("command node name: {} has parameter size of: {}", cmd_node.command.command, cmd_node.command.parameters.size());
+
+        if(cmd_node.command.parameters.size() > 0){
+            command_it++;
+            for(int i = 0; i < cmd_node.command.parameters.size(); i++){
+                std::string parameter_type = cmd_node.command.parameters[i];
+                spdlog::debug("processing parameter: {} of type {}", *command_it, parameter_type);
+
+                if(parameter_type == "int"){
+                    try {
+                        int val = std::stoi(*command_it);
+                        args.emplace_back(val);
+                    } catch (const std::invalid_argument&) {
+                        spdlog::error("Invalid int param: \"{}\"", *command_it);
+                        res.is_ok = false;
+                        res.error_message = fmt::format("Invalid int param: \"{}\"", *command_it);
+                        return res;
+                    }
+                }else if(parameter_type == "string"){
+                    args.emplace_back(*command_it);
+                }
+                
+            }
+        }
+        
+        if(command_it == commands.end()) break;
+        command_it++;
+    }
+
+    spdlog::debug("all parameter size is: {}", args.size());
+
+    return res;
 }
 
 /**
@@ -113,19 +181,43 @@ int main(){
  * @return true if created correctly
  * @return false if any error ocurred during the command validation
  */
+
 bool create_command(const std::string& command, std::function<void(const std::vector<std::any>&)> callback){
     std::vector commands = split_string(command, '_');
+    std::string prev_node = "";
 
-    //validate each command
-    for(auto cmd : commands){
-        Command command_obj;
-        result_t res = valiedate_command(cmd, command_obj);
-        if(res.is_ok == true){
-            continue;  
-        } 
-        else spdlog::error("Not a valid command: {} for the command {}", res.error_message, cmd);
+    for(std::uint8_t i = 0; i < commands.size(); i++){
+        command_t command_obj;
+        result_t command_res = valiedate_command(commands[i], command_obj);
+
+        if(!command_res.is_ok){
+            spdlog::error("Not a valid command: {} for the command {}", command_res.error_message, commands[i]);
+            command_res.is_ok = false;
+            command_res.error_message = fmt::format("Not a valid command: {} for the command {}", command_res.error_message, commands[i]);
+            return false;          
+        }
+
+        //spdlog::debug("command created for: \"{}\" with description: \"{}\" and parameters: \"{}\"", command_obj.command, command_obj.description, command_obj.parameters);
+
+        //creates node
+        command_node_t command_node;
+        command_node.command = command_obj;
+
+        if(command_map.find(command_obj.command) == command_map.end()){
+            command_map[command_obj.command] = command_node;
+        }
+
+        if(prev_node != ""){
+            command_map[prev_node].next_node[command_obj.command] = command_node;
+        }
+
+        // the last node is the one who is getting the callback
+        if(i == commands.size() - 1){
+            command_node.node_action = callback;
+        }
+
+        prev_node = command_obj.command;
     }
-
 
     return true;
 }
@@ -142,7 +234,7 @@ RULES:
         > the only valid character after a ** closes is "<" not even an empty space
 2) validates if has parameters
         > validate <> position
-        > validate if correct position of the ()[]
+        > validate if correct position of the ()
     the program will validate the int and float format. The user is in charge of validating the string format
 */
 
@@ -155,21 +247,9 @@ there are 3 basic parameter types:
 
     parameter structure:
         > () where defines the type (int or string)
-        > [] in case of int you can define a range [a-b] (optional)
-        > [] in case of string, is the max length of the string
-
         example:
-        (int)[0-100]
         (int)
-        (int)[1-n]
-        (string)[n]
-
-rules:
-    > int. Can be configured to accept or not a range, if not set a range, by default de range would be -inf to inf, but most have a default value
-      default value can be a number or the letter "n" that means all info available
-
-    > string is the simplest since the user only need to stablish that waits a string. But the user is in charge to validate that string
-
+        (string)
 */
 
 /**
@@ -179,9 +259,10 @@ rules:
  * @param command_out command object with the command information
  * @return Result result object with result information
  */
-Result valiedate_command(const std::string& command, Command& command_out){
+Result valiedate_command(const std::string& command, command_t& command_out){
     result_t res = {true, "", ""};
     std::string description = "";
+    command_out.command = command;
     
     //check if any description opener
     std::uint8_t astrk_count = std::count(command.begin(), command.end(), '*');
@@ -208,6 +289,8 @@ Result valiedate_command(const std::string& command, Command& command_out){
             command_out.command = strip_cmd;
             spdlog::debug(desc.message_str);
         }
+            
+        
     }
     
     //check if has any parameter
@@ -239,15 +322,17 @@ Result valiedate_command(const std::string& command, Command& command_out){
 
         for(auto parameter : parameters_arr){
             spdlog::debug("parameter: {}", parameter);
+     
+            if (parameter != "int" && parameter != "string"){
+                res.is_ok = false;
+                res.error_message = "Not valid parameter found: " + parameter;
+                return res;
+            }
 
-            //check if int
-            
-            //check if string
+            command_out.parameters.emplace_back(parameter);
         }
-         
+        
     }
-   
-
     return res;
 }
 
