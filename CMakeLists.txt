@@ -11,6 +11,8 @@ include(FetchContent)
 project(ConsoleIF
         VERSION 0.0.1
         LANGUAGES C CXX)
+        
+set(CMAKE_CXX_STANDARD 20)
 
 FetchContent_Declare(
         spdlog
@@ -34,4 +36,5 @@ target_include_directories(${EXECUTABLE_NAME} PUBLIC
 
 
 target_link_libraries(${EXECUTABLE_NAME} PUBLIC ${UTILS_LIB_NAME}
-                                                spdlog::spdlog)
+                                                spdlog::spdlog
+                                                Result)
