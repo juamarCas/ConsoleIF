@@ -214,7 +214,7 @@ bool create_command(const std::string& command, std::function<void(const std::ve
         command_t command_obj;
         auto command_res = valiedate_command(commands[i]);
 
-        if(!command_res.is_ok){
+        if(!command_res){
             spdlog::error("Not a valid command: {} for the command {}", command_res.Error(), commands[i]);
             command_res.set_error(fmt::format("Not a valid command: {} for the command {}", command_res.Error(), commands[i]));
             return false;
@@ -307,7 +307,7 @@ es::result_t<command_t, std::string> valiedate_command(const std::string& comman
         auto desc = extract_between_chars(command, '*', '*');
         auto start = std::find(command.begin(), command.end(), '*');
 
-        if (!desc.is_ok){
+        if (!desc){
             res.set_error(desc.Error());
             return res;
         }
@@ -339,7 +339,7 @@ es::result_t<command_t, std::string> valiedate_command(const std::string& comman
     if(has_parameters){
         auto parameters = extract_between_chars(command, '<', '>');
       
-        if (!parameters.is_ok){
+        if (!parameters){
             res.set_error(parameters.Error());
             return res;
         }
