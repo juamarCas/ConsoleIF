@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <memory>
 
 #include "spdlog/spdlog.h"
 #include "Utils.h"
@@ -13,6 +14,8 @@ typedef struct Command {
     std::string description = "";
     std::vector<std::string> parameters;
 
+    Command() = default;
+
     Command& operator=(const Command& other){
         command = other.command;
         description = other.description;
@@ -23,8 +26,14 @@ typedef struct Command {
 } command_t;
 
 typedef struct Command_node {
+
     command_t command;
-    std::map<std::string, struct Command_node> next_node {};
+    Command_node() = default;
+    ~Command_node(){
+        fmt::print("Command node destroyed for command: {}\n", command.command);
+        node_action = nullptr;
+    }
+    std::map<std::string, std::shared_ptr<Command_node>> next_node {};
     std::function<void(const std::vector<std::any>&)> node_action = nullptr;
 
 } command_node_t;
@@ -41,7 +50,7 @@ typedef struct Command_node {
 es::result_t<command_t, std::string> valiedate_command(const std::string& command);
 
 
-std::map<std::string, command_node_t> command_map;
+std::map<std::string, std::shared_ptr<command_node_t>> command_map;
 
 
 
@@ -94,7 +103,7 @@ void begin_app(){
         std::string command;
         std::getline(std::cin, command);
         command = trim(command);
-        process_command(command);
+        auto result = process_command(command);
         if(command == "exit"){
             spdlog::debug("Exiting app");
             exit(0);
@@ -102,6 +111,10 @@ void begin_app(){
 
         }
     }
+}
+
+void get_test_list(const std::vector<std::any>& args){
+    spdlog::debug("Getting test list");
 }
 
 int main(){
@@ -114,9 +127,7 @@ int main(){
 
     std::string get_test = "get_test*this is a test*<int>_list<int string>";
     std::string get_serial_command = "get_serial_list*get a list of every serial device available*<int>";
-    create_command(get_test, [](const std::vector<std::any>& args){
-        spdlog::debug("Command executed with args: {}", args.size());
-    });
+    create_command(get_test, get_test_list);
     
     create_command("clear", [](const std::vector<std::any>& args){
         std::system("clear");
@@ -136,7 +147,7 @@ es::result_t<std::string, std::string> process_command(const std::string& cmd){
     std::vector<std::string> commands = split_string(cmd, ' ');
     std::vector<std::any> args; 
     std::uint8_t command_index = 0;
-    command_node_t current_node;
+    std::shared_ptr<command_node_t> current_node = nullptr;
 
     auto command_it = commands.begin();
 
@@ -147,21 +158,21 @@ es::result_t<std::string, std::string> process_command(const std::string& cmd){
             return res;
     }
 
-    command_node_t cmd_node = command_map[*command_it];
+    std::shared_ptr<command_node_t> command_node = command_map[*command_it];
 
-    current_node = command_map[*command_it];
+    current_node = command_node;
     spdlog::debug("Obtained first command {} with parameter size of {}",
-                  current_node.command.command, current_node.command.parameters.size());
-    command_it++;    
+                  current_node->command.command, current_node->command.parameters.size());
+    command_it++;
     while(command_it != commands.end()){
         spdlog::debug("current cmd: {}", *command_it);
-        current_node = current_node.next_node[*command_it];
-        spdlog::debug("command node name: {} has parameter size of: {}", current_node.command.command, current_node.command.parameters.size());
+        current_node = current_node->next_node[*command_it];
+        spdlog::debug("command node name: {} has parameter size of: {}", current_node->command.command, current_node->command.parameters.size());
 
-        if(current_node.command.parameters.size() > 0){
+        if(current_node->command.parameters.size() > 0){
             command_it++;
-            for(int i = 0; i < current_node.command.parameters.size(); i++){
-                std::string parameter_type = current_node.command.parameters[i];
+            for(int i = 0; i < current_node->command.parameters.size(); i++){
+                std::string parameter_type = current_node->command.parameters[i];
                 spdlog::debug("processing parameter: {} of type {}", *command_it, parameter_type);
 
                 if(parameter_type == "int"){
@@ -186,11 +197,11 @@ es::result_t<std::string, std::string> process_command(const std::string& cmd){
     }
 
     spdlog::debug("all parameter size is: {}", args.size());
-    if(current_node.node_action != nullptr){
-        current_node.node_action(args);
+    if(current_node->node_action != nullptr){
+        current_node->node_action(args);
     }else{
-        spdlog::error("No callback defined for command: {}", current_node.command.command);
-        res.set_error(fmt::format("No callback defined for command: {}", current_node.command.command));
+        spdlog::error("No callback defined for command: {}", current_node->command.command);
+        res.set_error(fmt::format("No callback defined for command: {}", current_node->command.command));
         return res;
     }
 
@@ -208,7 +219,7 @@ es::result_t<std::string, std::string> process_command(const std::string& cmd){
 
 bool create_command(const std::string& command, std::function<void(const std::vector<std::any>&)> callback){
     std::vector commands = split_string(command, '_');
-    command_node_t * prev_node = nullptr;
+    std::shared_ptr<command_node_t>  prev_node;
 
     for(std::uint8_t i = 0; i < commands.size(); i++){
         command_t command_obj;
@@ -222,8 +233,8 @@ bool create_command(const std::string& command, std::function<void(const std::ve
 
         command_obj = *command_res;
 
-        command_node_t command_node;
-        command_node.command = command_obj;
+        std::shared_ptr<command_node_t> command_node = std::make_shared<command_node_t>();
+        command_node->command = command_obj;
 
         if(command_map.find(command_obj.command) != command_map.end() && i < commands.size() - 1){
            
@@ -234,18 +245,16 @@ bool create_command(const std::string& command, std::function<void(const std::ve
 
         if(prev_node != nullptr){
             prev_node->next_node[command_obj.command] = command_node;
-            prev_node = &prev_node->next_node[command_obj.command];
+            prev_node = prev_node->next_node[command_obj.command];
         }else{
             command_map[command_obj.command] = command_node;
-            prev_node = &command_map[command_obj.command];     
+            prev_node = command_map[command_obj.command];     
         }
 
         // the last node is the one who is getting the callback
         if(i == commands.size() - 1){
             prev_node->node_action = callback;
         }   
-        
-
     }
 
     return true;
