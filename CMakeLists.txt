@@ -4,15 +4,20 @@ set(UTILS_LIB_NAME Utils)
 set(EXECUTABLE_NAME ConsoleIF)
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/")
 
-
-
 include(FetchContent)
 
 project(ConsoleIF
-        VERSION 0.0.1
+        VERSION 0.1.0
         LANGUAGES C CXX)
         
 set(CMAKE_CXX_STANDARD 20)
+
+option(DEBUG_MODE "Enable debug mode (sets DEBUG=1)" ON)
+if(DEBUG_MODE)
+    add_compile_definitions(DEBUG=1)
+else()
+    add_compile_definitions(DEBUG=0)
+endif()
 
 FetchContent_Declare(
         spdlog
@@ -20,22 +25,24 @@ FetchContent_Declare(
         GIT_TAG v1.15.3
         GIT_SHALLOW TRUE
 )
-
 FetchContent_MakeAvailable(spdlog)
 
 add_subdirectory(configured)
 add_subdirectory(external)
-add_subdirectory(src)
 add_subdirectory(Includes)
 
-set(INPUT_SOURCE "main.cpp")
-add_executable(${EXECUTABLE_NAME} ${INPUT_SOURCE})
 
-target_include_directories(${EXECUTABLE_NAME} PUBLIC 
-        "${CMAKE_BINARY_DIR/configured_files}")
+add_library(ConsoleIF INTERFACE)
 
 
-target_link_libraries(${EXECUTABLE_NAME} PUBLIC ${UTILS_LIB_NAME}
-                                                spdlog::spdlog
-                                                Result
-                                                ConsoleIf)
+target_include_directories(ConsoleIF INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Includes>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/configured_files/include>
+    $<INSTALL_INTERFACE:include>
+)
+
+
+target_link_libraries(ConsoleIF INTERFACE
+    spdlog::spdlog
+)
+

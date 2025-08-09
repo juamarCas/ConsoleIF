@@ -57,7 +57,13 @@ namespace ConsoleIf
     class ConsoleIf
     {
     public:
-        ConsoleIf() = default;
+        ConsoleIf(){
+            #if DEBUG
+            spdlog::set_level(spdlog::level::debug);
+            #else
+            spdlog::set_level(spdlog::level::err);
+            #endif 
+        }
         ~ConsoleIf() = default;
         /**
         * @brief Create a command for the console interface
