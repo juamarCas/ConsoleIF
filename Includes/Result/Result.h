@@ -5,6 +5,10 @@
 #include <variant>
 #include <utility>
 
+/*
+To implement this with custom objects, it needs to define a constructor with no parameters
+and a copy constructor, and the operator= to copy the values from one object to another.
+*/
 namespace es {
 
     /**

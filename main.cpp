@@ -30,7 +30,6 @@ typedef struct Command_node {
     command_t command;
     Command_node() = default;
     ~Command_node(){
-        fmt::print("Command node destroyed for command: {}\n", command.command);
         node_action = nullptr;
     }
     std::map<std::string, std::shared_ptr<Command_node>> next_node {};
@@ -104,11 +103,8 @@ void begin_app(){
         std::getline(std::cin, command);
         command = trim(command);
         auto result = process_command(command);
-        if(command == "exit"){
-            spdlog::debug("Exiting app");
-            exit(0);
-        }else{
-
+        if(!result){
+            spdlog::error("Error processing command: {}", result.Error());
         }
     }
 }
@@ -133,9 +129,12 @@ int main(){
         std::system("clear");
     });
 
-    create_command(get_serial_command, get_serial_list);
-    
+    create_command("exit", [](const std::vector<std::any>& args){
+        spdlog::debug("Exiting app");
+        exit(0);
+    });
 
+    create_command(get_serial_command, get_serial_list);
 
     begin_app();
     
@@ -145,66 +144,83 @@ int main(){
 es::result_t<std::string, std::string> process_command(const std::string& cmd){
     es::result_t<std::string, std::string> res;
     std::vector<std::string> commands = split_string(cmd, ' ');
-    std::vector<std::any> args; 
-    std::uint8_t command_index = 0;
+    std::vector<std::any> args;
     std::shared_ptr<command_node_t> current_node = nullptr;
-
     auto command_it = commands.begin();
-
-    
-    if(command_map.find(*command_it) == command_map.end()){
-            spdlog::error("No command found for {}", *command_it);
-            res.set_error(fmt::format("No command found for {}", *command_it));
-            return res;
-    }
-
-    std::shared_ptr<command_node_t> command_node = command_map[*command_it];
-
-    current_node = command_node;
-    spdlog::debug("Obtained first command {} with parameter size of {}",
-                  current_node->command.command, current_node->command.parameters.size());
-    command_it++;
+    auto * current_map = &command_map;
+    std::function<void(const std::vector<std::any>&)> action = nullptr;
     while(command_it != commands.end()){
-        spdlog::debug("current cmd: {}", *command_it);
-        current_node = current_node->next_node[*command_it];
-        spdlog::debug("command node name: {} has parameter size of: {}", current_node->command.command, current_node->command.parameters.size());
+        if(current_map->find(*command_it) != current_map->end()){
+            spdlog::debug("Command {} found", *command_it);
+            auto parameter_map = (*current_map)[*command_it];
+            std::uint8_t parameter_size = parameter_map->command.parameters.size();
+            spdlog::debug("Command has {} parameters", parameter_size);
+            std::string current_command = *command_it;
 
-        if(current_node->command.parameters.size() > 0){
-            command_it++;
-            for(int i = 0; i < current_node->command.parameters.size(); i++){
-                std::string parameter_type = current_node->command.parameters[i];
-                spdlog::debug("processing parameter: {} of type {}", *command_it, parameter_type);
 
-                if(parameter_type == "int"){
+            if ((*current_map)[current_command]->node_action != nullptr) {
+                action = (*current_map)[current_command]->node_action;
+                spdlog::debug("Action found for command {}", current_command);
+            }
+
+
+            for (std::uint8_t i = 0; i < parameter_size; i++) {
+                spdlog::debug("Command parameter {}: {}", i, (*current_map)[current_command]->command.parameters[i]);
+                command_it++;
+                if ((*current_map)[current_command]->command.parameters[i] == "int") {
                     try {
-                        int val = std::stoi(*command_it);
-                        args.emplace_back(val);
-                    } catch (const std::invalid_argument&) {
-                        spdlog::error("Invalid int param: \"{}\"", *command_it);
-                        res.set_error(fmt::format("Invalid int param: \"{}\"", *command_it));
+                        int int_arg = std::stoi(*(command_it));
+                        args.push_back(int_arg);
+                    } catch (const std::invalid_argument& e) {
+                        res.set_error(fmt::format("Parameter {} is not a valid int", *(command_it + 1)));
+                        return res;
+                    } catch (const std::out_of_range& e) {
+                        res.set_error(fmt::format("Parameter {} is out of range for int", *(command_it + 1)));
                         return res;
                     }
-                }else if(parameter_type == "string"){
-                    args.emplace_back(*command_it);
+                } else if ((*current_map)[current_command]->command.parameters[i] == "string") {
+                    args.push_back(*command_it);
                 }
-                
+               
             }
-        }
+
+            if (current_map->find(current_command) == current_map->end()) {
+                spdlog::debug("No next command found, breaking");
+                res.set_error(fmt::format("Command {} not found", current_command));
+                return res;
+            }
+            current_map = &((*current_map)[current_command]->next_node);
+
+            // since if it has an action is because it found the last node, and to avoid the command_it is stuck in a parameter, in case parameters exist
+            // at the end of the loop, just move the pointer to next command
+            if (action != nullptr) break;
         
-        if(command_it == commands.end()) break;
+            if (parameter_size > 0){ 
+                if (command_it == commands.end()) {
+                    spdlog::debug("No more commands, breaking");
+                    break;
+                }
+                command_it++;
+                current_command = *command_it;
+                continue;
+            }
+
+            
+
+            
+        }
+
         command_it++;
-       
     }
 
-    spdlog::debug("all parameter size is: {}", args.size());
-    if(current_node->node_action != nullptr){
-        current_node->node_action(args);
-    }else{
-        spdlog::error("No callback defined for command: {}", current_node->command.command);
-        res.set_error(fmt::format("No callback defined for command: {}", current_node->command.command));
+    
+    if (action != nullptr) {
+        spdlog::debug("Executing action for command {}", cmd);
+        action(args);
+    } else {
+        res.set_error(fmt::format("This command {} was not found", cmd));
         return res;
     }
-
     return res;
 }
 
@@ -217,9 +233,12 @@ es::result_t<std::string, std::string> process_command(const std::string& cmd){
  * @return false if any error ocurred during the command validation
  */
 
+ // for now, only supports parameters which in the same node map can't have the same name
 bool create_command(const std::string& command, std::function<void(const std::vector<std::any>&)> callback){
     std::vector commands = split_string(command, '_');
     std::shared_ptr<command_node_t>  prev_node;
+
+    auto * current_map = &command_map;
 
     for(std::uint8_t i = 0; i < commands.size(); i++){
         command_t command_obj;
@@ -236,27 +255,23 @@ bool create_command(const std::string& command, std::function<void(const std::ve
         std::shared_ptr<command_node_t> command_node = std::make_shared<command_node_t>();
         command_node->command = command_obj;
 
-        if(command_map.find(command_obj.command) != command_map.end() && i < commands.size() - 1){
-           
-
+        if(current_map->find(command_obj.command) == current_map->end()){
+            spdlog::debug("Adding command {} to map", command_obj.command);
+            (*current_map)[command_obj.command] = command_node;
+            spdlog::debug("check command map: {}", (*current_map)[command_obj.command]->command.command);
         }
 
-        //spdlog::debug("command created for: \"{}\" with description: \"{}\" and parameters: \"{}\"", command_obj.command, command_obj.description, command_obj.parameters); 
+        current_map = &((*current_map)[command_obj.command]->next_node);
+        
 
-        if(prev_node != nullptr){
-            prev_node->next_node[command_obj.command] = command_node;
-            prev_node = prev_node->next_node[command_obj.command];
-        }else{
-            command_map[command_obj.command] = command_node;
-            prev_node = command_map[command_obj.command];     
+        if (i == commands.size() - 1){
+            // if is the last command, set the action
+            command_node->node_action = callback;
+            spdlog::debug("Setting action for command: {}", command_node->command.command);
         }
 
-        // the last node is the one who is getting the callback
-        if(i == commands.size() - 1){
-            prev_node->node_action = callback;
-        }   
-    }
-
+    }  
+    spdlog::debug("Command {} created successfully", command);
     return true;
 }
 
@@ -282,7 +297,7 @@ RULES:
 
 /*
 Parameter rules:
-there are 3 basic parameter types:
+there are 2 basic parameter types:
     > int
     > string
 
