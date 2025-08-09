@@ -7,7 +7,7 @@ endif()
 add_library(${UTILS_LIB_NAME} STATIC "Utils.cpp")
 
 target_include_directories(${UTILS_LIB_NAME} PUBLIC 
-    "${CMAKE_SOURCE_DIR}/Includes/Utils"    # For Utils.h
+    "${CMAKE_SOURCE_DIR}/Includes/Utils"
 )
 
 target_link_libraries(${UTILS_LIB_NAME} PUBLIC Result)

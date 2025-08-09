@@ -37,4 +37,5 @@ target_include_directories(${EXECUTABLE_NAME} PUBLIC
 
 target_link_libraries(${EXECUTABLE_NAME} PUBLIC ${UTILS_LIB_NAME}
                                                 spdlog::spdlog
-                                                Result)
+                                                Result
+                                                ConsoleIf)
