@@ -243,6 +243,9 @@ RULES:
         else if (triangle_back_count == 1 and triangle_front_count == 1)
         {
             has_parameters = true;
+        }else if(triangle_back_count != triangle_front_count){
+            res.set_error("Invalid parameter closure format, missing a closing or opening triangle bracket");
+            return res;
         }
 
         if (has_parameters)
