@@ -19,86 +19,66 @@ namespace es {
      */
     template<typename R, typename E = std::string>
     struct result{
-        
-        typedef union data {
-            data(){ 
-                value = nullptr;
-            };
 
-            ~data(){ 
-                if (value){
-                    delete value;
-                    return;
-                }
+        R * value = nullptr;
+        E * error = nullptr;
 
-                delete error;
-            };
-
-            R * value;
-            E * error;
-        } data_u;
-
-        data_u * data = nullptr;
-       
         bool is_ok;
 
         result(){
             is_ok = true;
-            data = new data_u();
+            value = new R;
         }
 
-        ~result(){ delete data; }
+        ~result(){ 
+            if(value) {
+                delete value;
+            }
+            if(error) {
+                delete error;
+            }
+        }
 
         void set_error(const E& error_val) {
 
-            if (data->value != nullptr) {
-                delete data->value;
-                data->value = nullptr;
+            if(error) {
+                delete error;
             }
 
-            if (data->error != nullptr) {
-                delete data->error;
-                data->error = nullptr;
-            }
-
-            data->error = new E;
-          
-            *data->error = error_val;
+            error = new E;
+            *error = error_val;
             is_ok = false;
         }
 
         void set_value(const R& value_val) {
-            *data->value = value_val;
+            if(value) {
+                delete value;
+            }
+            value = new R;
+            *value = value_val;
             is_ok = true;
         }
 
-        E Error() const { return *data->error; }
-        R Value() const { return *data->value; }
+        E Error() const { return *error; }
+        R Value() const { return *value; }
 
         operator bool() const {return is_ok;}
         R operator*() const{
             if (!is_ok) {
                 throw std::runtime_error("Attempted to dereference an error result");
             }
-            return *data->value;
+            return *value;
         }
 
-        R& operator=(const R& value) {
+        R& operator=(const R& value_val) {
             
-            if(data->value != nullptr) {
-                delete data->value;
+            if (value) {
+                delete value;
             }
 
-            if (data->error != nullptr) {
-                delete data->error;
-                data->error = nullptr;
-            }
-
-            data->value = new R;
-            *data->value = value;
-            
-            
-            return *data->value;
+            value = new R;
+            *value = value_val;
+            return *value;
         }
         
     };

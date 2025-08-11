@@ -5,7 +5,7 @@ set_target_properties(${TEST_EXECUTABLE_NAME} PROPERTIES
 )
 target_link_libraries(${TEST_EXECUTABLE_NAME} PRIVATE   Result
                                                         Utils
-                                                        ConsoleIF 
+                                                        ConsoleIf 
                                                         gtest_main 
                                                         gmock_main 
                                                         spdlog::spdlog)
