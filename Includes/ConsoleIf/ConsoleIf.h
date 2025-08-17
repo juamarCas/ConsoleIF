@@ -7,6 +7,11 @@
 #include <vector>
 #include <any>
 
+#if TESTS
+#include <gtest/gtest.h>
+#include <gtest/gtest_prod.h>
+#endif
+
 #include "Result.h"
 #include "spdlog/spdlog.h"
 #include "Utils.h"
@@ -79,9 +84,12 @@ namespace ConsoleIf
         {
             this->indicator = indicator;
         }
+        
+        
+        private:
 
+        
 
-    private:
         /**
          * @brief validate a structure of a command
          *
@@ -89,12 +97,24 @@ namespace ConsoleIf
          * @return Result object Result with results information
          */
         es::result_t<command_t, std::string> valiedate_command(const std::string &command);
+        
+        #if TESTS
+        FRIEND_TEST(ConsoleIfTest, TestProcessCommand);
+        #endif
+        es::result_t<std::string, std::string> process_command(const std::string& cmd);
 
         std::map<std::string, std::shared_ptr<command_node_t>> command_map;
         bool add_description_to_command(const std::string& description);
 
-        es::result_t<std::string, std::string> process_command(const std::string& cmd);
 
         char indicator = '>';
     };
+
+    #if TESTS
+    class ConsoleIfTest : public ::testing::Test
+    {
+    protected:
+        ConsoleIf console_if;
+    };
+    #endif
 }

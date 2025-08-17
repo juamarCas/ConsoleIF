@@ -22,6 +22,15 @@ else()
     add_compile_definitions(DEBUG=0)
 endif()
 
+
+if(BUILD_TESTS)
+    add_compile_definitions(TESTS=1)
+else()
+    add_compile_definitions(TESTS=0)
+endif()
+
+
+
 FetchContent_Declare(
         spdlog
         GIT_REPOSITORY https://github.com/gabime/spdlog.git

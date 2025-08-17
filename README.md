@@ -22,12 +22,6 @@ Simple, header only and lightweight framework for creating console interfaces fo
 #include "Result.h"
 
 
-
-/**
- * @brief prints the available serial interfaces
- * 
- * @param args NA
- */
 void get_serial_list(const std::vector<std::any>& args){
     spdlog::debug("YEY");
 }

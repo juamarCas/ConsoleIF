@@ -7,3 +7,7 @@ target_include_directories(${UTILS_LIB_NAME} PUBLIC
 target_link_libraries(ConsoleIf PUBLIC Result
                                         spdlog::spdlog
                                         Utils)
+
+if(BUILD_TESTS)
+    target_link_libraries(ConsoleIf PUBLIC gtest_main gmock_main)
+endif()
