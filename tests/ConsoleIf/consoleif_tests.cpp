@@ -80,6 +80,24 @@ namespace ConsoleIf
         });
 
         EXPECT_EQ(console_if.process_command("get test 5 list 4 test").is_ok, true);
+    
+        test = "get_test<int>_list<int string>_action<int>";
+
+        res = console_if.create_command(test, [](const std::vector<std::any> &args){
+            ASSERT_EQ(args.size(), 4);
+            ASSERT_TRUE(std::any_cast<int>(args[0]) == 5);
+            ASSERT_TRUE(std::any_cast<int>(args[1]) == 4);
+            ASSERT_TRUE(std::any_cast<std::string>(args[2]) == "test");
+            ASSERT_TRUE(std::any_cast<int>(args[3]) == 6);
+
+            spdlog::info("Command executed with int: {}, int: {}, string: {}, int: {}", 
+                std::any_cast<int>(args[0]), 
+                std::any_cast<int>(args[1]), 
+                std::any_cast<std::string>(args[2]), 
+                std::any_cast<int>(args[3]));
+        });
+
+        EXPECT_EQ(console_if.process_command("get test 5 list 4 test action 6").is_ok, true);
     }
 }
 

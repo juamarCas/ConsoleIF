@@ -30,18 +30,18 @@ namespace ConsoleIf
         std::vector<std::string> commands = split_string(cmd, ' ');
         std::vector<std::any> args;
         std::shared_ptr<command_node_t> current_node = nullptr;
-        auto command_it = commands.begin();
         auto *current_map = &command_map;
         std::function<void(const std::vector<std::any> &)> action = nullptr;
-        while (command_it != commands.end())
+
+        for(std::uint8_t i = 0; i < commands.size() - 1 ; i++)
         {
-            if (current_map->find(*command_it) != current_map->end())
+            if(current_map->find(commands[i]) != current_map->end())
             {
-                spdlog::debug("Command {} found", *command_it);
-                auto parameter_map = (*current_map)[*command_it];
+                spdlog::debug("Command {} found", commands[i]);
+                auto parameter_map = (*current_map)[commands[i]];
                 std::uint8_t parameter_size = parameter_map->command.parameters.size();
                 spdlog::debug("Command has {} parameters", parameter_size);
-                std::string current_command = *command_it;
+                std::string current_command = commands[i];
 
                 if ((*current_map)[current_command]->node_action != nullptr)
                 {
@@ -49,35 +49,35 @@ namespace ConsoleIf
                     spdlog::debug("Action found for command {}", current_command);
                 }
 
-                for (std::uint8_t i = 0; i < parameter_size; i++)
+                for (std::uint8_t j = 0; j < parameter_size; j++)
                 {
-                    spdlog::debug("Command parameter {}: {}", i, (*current_map)[current_command]->command.parameters[i]);
-                    command_it++;
-                    if ((*current_map)[current_command]->command.parameters[i] == "int")
+                    spdlog::debug("Command parameter {}: {}", j, (*current_map)[current_command]->command.parameters[j]);
+                    i++;
+                    if ((*current_map)[current_command]->command.parameters[j] == "int")
                     {
                         try
                         {
-                            int int_arg = std::stoi(*(command_it));
+                            int int_arg = std::stoi(commands[i]);
                             args.push_back(int_arg);
                         }
                         catch (const std::invalid_argument &e)
                         {
-                            res.set_error(fmt::format("Parameter {} is not a valid int", *(command_it + 1)));
+                            res.set_error(fmt::format("Parameter {} is not a valid int", commands[i + 1]));
                             return res;
                         }
                         catch (const std::out_of_range &e)
                         {
-                            res.set_error(fmt::format("Parameter {} is out of range for int", *(command_it + 1)));
+                            res.set_error(fmt::format("Parameter {} is out of range for int", commands[i + 1]));
                             return res;
                         }
                     }
-                    else if ((*current_map)[current_command]->command.parameters[i] == "string")
+                    else if ((*current_map)[current_command]->command.parameters[j] == "string")
                     {
-                        args.push_back(*command_it);
+                        args.push_back(commands[i]);
                     }
                 }
 
-                if (current_map->find(current_command) == current_map->end())
+                 if (current_map->find(current_command) == current_map->end())
                 {
                     spdlog::debug("No next command found, breaking");
                     res.set_error(fmt::format("Command {} not found", current_command));
@@ -87,23 +87,20 @@ namespace ConsoleIf
 
                 // since if it has an action is because it found the last node, and to avoid the command_it is stuck in a parameter, in case parameters exist
                 // at the end of the loop, just move the pointer to next command
-                if (action != nullptr)
+                if (i >= commands.size() - 1 && action != nullptr){
                     break;
+                }
 
                 if (parameter_size > 0)
                 {
-                    if (command_it == commands.end())
+                    if (i >= commands.size() - 1)
                     {
                         spdlog::debug("No more commands, breaking");
-                        break;
+                        res.set_error(fmt::format("Command {} not found", current_command));
+                        return res;
                     }
-                    command_it++;
-                    current_command = *command_it;
-                    continue;
                 }
             }
-
-            command_it++;
         }
 
         if (action != nullptr)
@@ -117,6 +114,7 @@ namespace ConsoleIf
             return res;
         }
         return res;
+
     }
 
     bool ConsoleIf::create_command(const std::string &command, std::function<void(const std::vector<std::any> &)> callback)
