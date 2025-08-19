@@ -98,6 +98,19 @@ namespace ConsoleIf
         });
 
         EXPECT_EQ(console_if.process_command("get test 5 list 4 test action 6").is_ok, true);
+    
+        test = "set_test_name<string>";
+
+        res = console_if.create_command(test, [](const std::vector<std::any> &args){
+            ASSERT_EQ(args.size(), 1);
+            ASSERT_TRUE(std::any_cast<std::string>(args[0]) == "device");
+         
+
+            spdlog::info("Command executed with string: {}", 
+                std::any_cast<std::string>(args[0]));
+        });
+
+        EXPECT_EQ(console_if.process_command("set test name device").is_ok, true);
     }
 }
 
