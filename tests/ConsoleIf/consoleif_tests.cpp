@@ -59,9 +59,19 @@ namespace ConsoleIf
         std::string test;
         bool res;
 
+        /*
+        for now, since in a same node cant be the same name with different parameters, is rest meanwhile i figure out how to implement it
+        */
+        test = "get_rest_no_params";
+        res = console_if.create_command(test, [](const std::vector<std::any> &args){
+            ASSERT_EQ(args.size(), 0);
+            spdlog::info("command param size {}", args.size());
+        });
+
+        EXPECT_EQ(console_if.process_command("get rest no params").is_ok, true);
+
         test = "get_test*desc*<int>";
-        res = console_if.create_command(test, [](const std::vector<std::any> &args)
-                                             {
+        res = console_if.create_command(test, [](const std::vector<std::any> &args){
             ASSERT_EQ(args.size(), 1);
             ASSERT_TRUE(std::any_cast<int>(args[0]) == 42);
 

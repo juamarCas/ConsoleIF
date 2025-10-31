@@ -54,7 +54,7 @@ namespace ConsoleIf
         auto *current_map = &command_map;
         std::function<void(const std::vector<std::any> &)> action = nullptr;
 
-        for(std::uint8_t i = 0; i < commands.size() - 1 ; i++)
+        for(std::uint8_t i = 0; i < commands.size() ; i++)
         {
             if(current_map->find(commands[i]) != current_map->end())
             {
@@ -98,7 +98,7 @@ namespace ConsoleIf
                     }
                 }
 
-                 if (current_map->find(current_command) == current_map->end())
+                if (current_map->find(current_command) == current_map->end())
                 {
                     spdlog::debug("No next command found, breaking");
                     res.set_error(fmt::format("Command {} not found", current_command));
@@ -206,10 +206,10 @@ RULES:
         > string
 
         parameter structure:
-            > () where defines the type (int or string)
+            > "<>" where defines the type (int or string)
             example:
-            (int)
-            (string)
+            <int>
+            <string>
     */
 
   
