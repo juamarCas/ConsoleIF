@@ -104,6 +104,40 @@ namespace es {
         
     };
 
+    template<typename E>
+    struct result<void, E> {
+        E* error = nullptr;
+        bool is_ok;
+
+        result() {
+            is_ok = true;
+        }
+
+        ~result() {
+            if (error) {
+                delete error;
+            }
+        }
+
+        void set_error(const E& error_val) {
+            if (error) {
+                delete error;
+            }
+
+            error = new E;
+            *error = error_val;
+            is_ok = false;
+        }
+
+        void set_value() {
+            is_ok = true;
+        }
+
+        E Error() const { return *error; }
+
+        operator bool() const { return is_ok; }
+    };
+
     template<typename R, typename E = std::string>
     using result_t = result<R, E>;
 
